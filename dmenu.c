@@ -12,6 +12,7 @@
 #include <wld/wld.h>
 #include <xkbcommon/xkbcommon.h>
 #include "draw.h"
+#include "panel-client-protocol.h"
 
 #define INTERSECT(x,y,w,h,r)  (MAX(0, MIN((x)+(w),(r).x_org+(r).width)  - MAX((x),(r).x_org)) \
                              * MAX(0, MIN((y)+(h),(r).y_org+(r).height) - MAX((y),(r).y_org)))
@@ -63,14 +64,7 @@ static void kbdkeymap(void *data, struct wl_keyboard *kbd, uint32_t format,
 		      int32_t fd, uint32_t size);
 static void match(void);
 static size_t nextrune(int inc);
-static void outputgeometry(void *data, struct wl_output *output,
-			   int32_t x, int32_t y, int32_t physw, int32_t physh,
-			   int32_t subpixel, const char *make, const char *model,
-			   int32_t transform);
-static void outputmode(void *data, struct wl_output *output, uint32_t flags,
-		       int32_t w, int32_t h, int32_t refresh);
-static void outputdone(void *data, struct wl_output *output);
-static void outputscale(void *data, struct wl_output *output, int32_t factor);
+static void paneldocked(void *data, struct panel *panel, uint32_t length);
 static void paste(void);
 static void readstdin(void);
 static void regglobal(void *data, struct wl_registry *reg, uint32_t name,
@@ -78,8 +72,6 @@ static void regglobal(void *data, struct wl_registry *reg, uint32_t name,
 static void regglobalremove(void * data, struct wl_registry *reg, uint32_t name);
 static void run(void);
 static void setup(void);
-static void surfenter(void *data, struct wl_surface *surf, struct wl_output *output);
-static void surfleave(void *data, struct wl_surface *surf, struct wl_output *output);
 static void usage(void);
 
 static char text[BUFSIZ] = "";
@@ -98,15 +90,14 @@ static struct wl_keyboard *kbd;
 static struct wl_seat *seat;
 static struct wl_shell *shell;
 static struct wl_surface *surf;
-static struct wl_shell_surface *shellsurf;
 static struct wl_data_device_manager *datadevman;
 static struct wl_data_device *datadev;
 static struct wl_data_offer *seloffer;
+static struct panel_manager *panelman;
+static struct panel *panel;
 static XKB xkb;
 static const struct wl_registry_listener reglistener
 	= { regglobal, regglobalremove };
-static const struct wl_surface_listener surflistener
-	= { surfenter, surfleave };
 static const struct wl_keyboard_listener kbdlistener
 	= { kbdkeymap, kbdenter, kbdleave, kbdkey, kbdmodifiers };
 static const struct wl_data_device_listener datadevlistener = {
@@ -115,8 +106,7 @@ static const struct wl_data_device_listener datadevlistener = {
 };
 static const struct wl_data_offer_listener dataofferlistener
 	= { dataofferoffer };
-static const struct wl_output_listener outputlistener
-	= { outputgeometry, outputmode, outputdone, outputscale };
+static const struct panel_listener panellistener = { paneldocked };
 
 #include "config.h"
 
@@ -212,12 +202,6 @@ cistrstr(const char *s, const char *sub) {
 }
 
 void
-dataofferoffer(void *data, struct wl_data_offer *offer, const char *mimetype) {
-	if (strncmp(mimetype, "text/plain", 10) == 0)
-		wl_data_offer_set_user_data(offer, (void *)(uintptr_t) 1);
-}
-
-void
 datadevoffer(void *data, struct wl_data_device *datadev,
 	     struct wl_data_offer *offer) {
 	     wl_data_offer_add_listener(offer, &dataofferlistener, NULL);
@@ -247,6 +231,12 @@ datadevselection(void *data, struct wl_data_device *datadev,
 		 struct wl_data_offer *offer) {
 	if (offer && (uintptr_t) wl_data_offer_get_user_data(offer) == 1)
 		seloffer = offer;
+}
+
+void
+dataofferoffer(void *data, struct wl_data_offer *offer, const char *mimetype) {
+	if (strncmp(mimetype, "text/plain", 10) == 0)
+		wl_data_offer_set_user_data(offer, (void *)(uintptr_t) 1);
 }
 
 void
@@ -590,26 +580,11 @@ nextrune(int inc) {
 }
 
 void
-outputgeometry(void *data, struct wl_output *output, int32_t x, int32_t y,
-	       int32_t physw, int32_t physh, int32_t subpixel,
-	       const char *make, const char *model, int32_t transform) {
-}
+paneldocked(void *data, struct panel *panel, uint32_t length) {
+	mw = length;
 
-void
-outputmode(void *data, struct wl_output *output, uint32_t flags,
-	   int32_t w, int32_t h, int32_t refresh) {
-	if(flags & WL_OUTPUT_MODE_CURRENT) {
-		mw = mw ? MIN(mw, w) : w;
-		wl_output_set_user_data(output, (void *)(uintptr_t) w);
-	}
-}
-
-void
-outputdone(void *data, struct wl_output *output) {
-}
-
-void
-outputscale(void *data, struct wl_output *output, int32_t factor) {
+	dc->drawable = wld_wayland_create_drawable(dc->ctx, surf, mw, mh,
+						   WLD_FORMAT_XRGB8888, 0);
 }
 
 void
@@ -664,11 +639,8 @@ regglobal(void *data, struct wl_registry *reg, uint32_t name,
 		seat = wl_registry_bind(reg, name, &wl_seat_interface, 1);
 	else if(strcmp(interface, "wl_data_device_manager") == 0)
 		datadevman = wl_registry_bind(reg, name, &wl_data_device_manager_interface, 1);
-	else if(strcmp(interface, "wl_output") == 0) {
-		struct wl_output *output;
-		output = wl_registry_bind(reg, name, &wl_output_interface, 1);
-		wl_output_add_listener(output, &outputlistener, NULL);
-	}
+	else if(strcmp(interface, "panel_manager") == 0)
+		panelman = wl_registry_bind(reg, name, &panel_manager_interface, 1);
 }
 
 void
@@ -691,6 +663,9 @@ setup(void) {
 	if (!seat)
 		exit(EXIT_FAILURE);
 
+	if (!panelman)
+		exit(EXIT_FAILURE);
+
 	kbd = wl_seat_get_keyboard(seat);
 	wl_keyboard_add_listener(kbd, &kbdlistener, NULL);
 	datadev = wl_data_device_manager_get_data_device(datadevman, seat);
@@ -710,37 +685,23 @@ setup(void) {
 	lines = MAX(lines, 0);
 	mh = (lines + 1) * bh;
 
-	/* wait for output modes */
+	/* create menu surface */
+	surf = wl_compositor_create_surface(comp);
+
+	panel = panel_manager_create_panel(panelman, surf);
+        panel_add_listener(panel, &panellistener, NULL);
+	panel_dock(panel, topbar ? PANEL_EDGE_TOP : PANEL_EDGE_BOTTOM, NULL,
+                   true);
+
 	wl_display_roundtrip(dc->dpy);
+
+	if (!dc->drawable)
+		exit(EXIT_FAILURE);
 
 	promptw = (prompt && *prompt) ? textw(dc, prompt) : 0;
 	inputw = MIN(inputw, mw/3);
 	match();
-
-	/* create menu surface */
-	surf = wl_compositor_create_surface(comp);
-	wl_surface_add_listener(surf, &surflistener, NULL);
-
-	dc->drawable = wld_wayland_create_drawable(dc->ctx, surf, mw, mh,
-						   WLD_FORMAT_XRGB8888, 0);
-
-	shellsurf = wl_shell_get_shell_surface(shell, surf);
-	wl_shell_surface_set_toplevel(shellsurf);
 	drawmenu();
-}
-
-void
-surfenter(void *data, struct wl_surface *surf, struct wl_output *output) {
-	int outputw;
-	if ((outputw = (uintptr_t) wl_output_get_user_data(output))) {
-		mw = outputw;
-		resizedc(dc, surf, mw, mh);
-		drawmenu();
-	}
-}
-
-void
-surfleave(void *data, struct wl_surface *surf, struct wl_output *output) {
 }
 
 void

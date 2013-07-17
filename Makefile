@@ -3,7 +3,7 @@
 
 include config.mk
 
-SRC = dmenu.c draw.c stest.c
+SRC = dmenu.c draw.c stest.c panel-protocol.c
 OBJ = ${SRC:.c=.o}
 
 all: options dmenu stest
@@ -22,11 +22,19 @@ config.h:
 	@echo creating $@ from config.def.h
 	@cp config.def.h $@
 
-${OBJ}: config.h config.mk draw.h
+panel-protocol.c: panel.xml
+	@echo GEN $@
+	@wayland-scanner code < $< > $@
 
-dmenu: dmenu.o draw.o
+panel-client-protocol.h: panel.xml
+	@echo GEN $@
+	@wayland-scanner client-header < $< > $@
+
+${OBJ}: config.h config.mk draw.h panel-client-protocol.h
+
+dmenu: dmenu.o draw.o panel-protocol.o
 	@echo CC -o $@
-	@${CC} -o $@ dmenu.o draw.o ${LDFLAGS}
+	@${CC} -o $@ dmenu.o draw.o panel-protocol.o ${LDFLAGS}
 
 stest: stest.o
 	@echo CC -o $@
