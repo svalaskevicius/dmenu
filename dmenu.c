@@ -12,7 +12,7 @@
 #include <wld/wld.h>
 #include <xkbcommon/xkbcommon.h>
 #include "draw.h"
-#include "panel-client-protocol.h"
+#include "swc-client-protocol.h"
 
 #define INTERSECT(x,y,w,h,r)  (MAX(0, MIN((x)+(w),(r).x_org+(r).width)  - MAX((x),(r).x_org)) \
                              * MAX(0, MIN((y)+(h),(r).y_org+(r).height) - MAX((y),(r).y_org)))
@@ -64,7 +64,7 @@ static void kbdkeymap(void *data, struct wl_keyboard *kbd, uint32_t format,
 		      int32_t fd, uint32_t size);
 static void match(void);
 static size_t nextrune(int inc);
-static void paneldocked(void *data, struct panel *panel, uint32_t length);
+static void paneldocked(void *data, struct swc_panel *panel, uint32_t length);
 static void paste(void);
 static void readstdin(void);
 static void regglobal(void *data, struct wl_registry *reg, uint32_t name,
@@ -93,8 +93,8 @@ static struct wl_surface *surf;
 static struct wl_data_device_manager *datadevman;
 static struct wl_data_device *datadev;
 static struct wl_data_offer *seloffer;
-static struct panel_manager *panelman;
-static struct panel *panel;
+static struct swc_panel_manager *panelman;
+static struct swc_panel *panel;
 static XKB xkb;
 static const struct wl_registry_listener reglistener
 	= { regglobal, regglobalremove };
@@ -106,7 +106,7 @@ static const struct wl_data_device_listener datadevlistener = {
 };
 static const struct wl_data_offer_listener dataofferlistener
 	= { dataofferoffer };
-static const struct panel_listener panellistener = { paneldocked };
+static const struct swc_panel_listener panellistener = { paneldocked };
 
 #include "config.h"
 
@@ -580,7 +580,7 @@ nextrune(int inc) {
 }
 
 void
-paneldocked(void *data, struct panel *panel, uint32_t length) {
+paneldocked(void *data, struct swc_panel *panel, uint32_t length) {
 	mw = length;
 
 	dc->drawable = wld_wayland_create_drawable(dc->ctx, surf, mw, mh,
@@ -639,8 +639,8 @@ regglobal(void *data, struct wl_registry *reg, uint32_t name,
 		seat = wl_registry_bind(reg, name, &wl_seat_interface, 1);
 	else if(strcmp(interface, "wl_data_device_manager") == 0)
 		datadevman = wl_registry_bind(reg, name, &wl_data_device_manager_interface, 1);
-	else if(strcmp(interface, "panel_manager") == 0)
-		panelman = wl_registry_bind(reg, name, &panel_manager_interface, 1);
+	else if(strcmp(interface, "swc_panel_manager") == 0)
+		panelman = wl_registry_bind(reg, name, &swc_panel_manager_interface, 1);
 }
 
 void
@@ -688,10 +688,10 @@ setup(void) {
 	/* create menu surface */
 	surf = wl_compositor_create_surface(comp);
 
-	panel = panel_manager_create_panel(panelman, surf);
-        panel_add_listener(panel, &panellistener, NULL);
-	panel_dock(panel, topbar ? PANEL_EDGE_TOP : PANEL_EDGE_BOTTOM, NULL,
-                   true);
+	panel = swc_panel_manager_create_panel(panelman, surf);
+        swc_panel_add_listener(panel, &panellistener, NULL);
+	swc_panel_dock(panel, topbar ? SWC_PANEL_EDGE_TOP : SWC_PANEL_EDGE_BOTTOM,
+		       NULL, true);
 
 	wl_display_roundtrip(dc->dpy);
 

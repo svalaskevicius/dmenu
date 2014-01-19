@@ -22,19 +22,19 @@ config.h:
 	@echo creating $@ from config.def.h
 	@cp config.def.h $@
 
-panel-protocol.c: panel.xml
+swc-protocol.c: swc.xml
 	@echo GEN $@
 	@wayland-scanner code < $< > $@
 
-panel-client-protocol.h: panel.xml
+swc-client-protocol.h: swc.xml
 	@echo GEN $@
 	@wayland-scanner client-header < $< > $@
 
-${OBJ}: config.h config.mk draw.h panel-client-protocol.h
+${OBJ}: config.h config.mk draw.h swc-client-protocol.h
 
-dmenu: dmenu.o draw.o panel-protocol.o
+dmenu: dmenu.o draw.o swc-protocol.o
 	@echo CC -o $@
-	@${CC} -o $@ dmenu.o draw.o panel-protocol.o ${LDFLAGS}
+	@${CC} -o $@ dmenu.o draw.o swc-protocol.o ${LDFLAGS}
 
 stest: stest.o
 	@echo CC -o $@
