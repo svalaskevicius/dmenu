@@ -17,13 +17,13 @@
 void
 drawrect(DC *dc, int x, int y, unsigned int w, unsigned int h, bool fill, unsigned long color) {
 	if (fill) {
-		wld_fill_rectangle(dc->drawable, color, dc->x + x, dc->y + y, w, h);
+		wld_fill_rectangle(dc->renderer, color, dc->x + x, dc->y + y, w, h);
 	}
 	else {
-		wld_fill_rectangle(dc->drawable, color, dc->x + x, dc->y + y, w, 1);
-		wld_fill_rectangle(dc->drawable, color, dc->x + x + w - 1, dc->y + y + 1, 1, h - 2);
-		wld_fill_rectangle(dc->drawable, color, dc->x + x, dc->y + y + 1, 1, h - 2);
-		wld_fill_rectangle(dc->drawable, color, dc->x + x, dc->y + y - 1, w, 1);
+		wld_fill_rectangle(dc->renderer, color, dc->x + x, dc->y + y, w, 1);
+		wld_fill_rectangle(dc->renderer, color, dc->x + x + w - 1, dc->y + y + 1, 1, h - 2);
+		wld_fill_rectangle(dc->renderer, color, dc->x + x, dc->y + y + 1, 1, h - 2);
+		wld_fill_rectangle(dc->renderer, color, dc->x + x, dc->y + y - 1, w, 1);
 	}
 }
 
@@ -49,7 +49,7 @@ drawtextn(DC *dc, const char *text, size_t n, unsigned long col[ColLast]) {
 	int x = dc->x + dc->font->height/2;
 	int y = dc->y + dc->font->ascent+1;
 
-        wld_draw_text_utf8_n(dc->drawable, dc->font, FG(dc, col), x, y, text, n, NULL);
+        wld_draw_text_n(dc->renderer, dc->font, FG(dc, col), x, y, text, n, NULL);
 }
 
 void
@@ -69,8 +69,9 @@ eprintf(const char *fmt, ...) {
 
 void
 freedc(DC *dc) {
-	wld_destroy_drawable(dc->drawable);
-	wld_wayland_destroy_context(dc->ctx);
+	wld_destroy_surface(dc->surface);
+	wld_destroy_renderer(dc->renderer);
+	wld_destroy_context(dc->ctx);
 	wld_font_close(dc->font);
 	wld_font_destroy_context(dc->fontctx);
 	free(dc);
@@ -97,6 +98,7 @@ initdc(void) {
 		eprintf("cannot open display\n");
 
 	dc->ctx = wld_wayland_create_context(dc->dpy, WLD_ANY);
+	dc->renderer = wld_create_renderer(dc->ctx);
 	dc->fontctx = wld_font_create_context();
 	return dc;
 }
@@ -112,22 +114,21 @@ initfont(DC *dc, const char *fontstr) {
 void
 mapdc(DC *dc, struct wl_surface *surface, unsigned int w, unsigned int h) {
 	wl_surface_damage(surface, 0, 0, w, h);
-	wld_flush(dc->drawable);
+	wld_flush(dc->renderer);
+	wld_swap(dc->surface);
 }
 
 void
 resizedc(DC *dc, struct wl_surface *surf, unsigned int w, unsigned int h) {
-        if (dc->drawable->width == w && dc->drawable->height == h)
-                return;
-	wld_destroy_drawable(dc->drawable);
-	dc->drawable = wld_wayland_create_drawable(dc->ctx, surf, w, h,
-						   WLD_FORMAT_XRGB8888, 0);
+	wld_destroy_surface(dc->surface);
+	dc->surface = wld_wayland_create_surface(dc->ctx, w, h,
+						 WLD_FORMAT_XRGB8888, surf);
 }
 
 int
 textnw(DC *dc, const char *text, size_t len) {
 	struct wld_extents extents;
-	wld_font_text_extents_utf8_n(dc->font, text, len, &extents);
+	wld_font_text_extents_n(dc->font, text, len, &extents);
 	return extents.advance;
 }
 

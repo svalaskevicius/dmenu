@@ -9,8 +9,9 @@ typedef struct {
 	int x, y, w, h;
 	bool invert;
 	struct wl_display *dpy;
-	struct wld_wayland_context *ctx;
-	struct wld_drawable *drawable;
+	struct wld_context *ctx;
+	struct wld_renderer *renderer;
+	struct wld_surface *surface;
 	struct wld_font_context *fontctx;
 	struct wld_font *font;
 } DC;  /* draw context */

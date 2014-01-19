@@ -244,6 +244,7 @@ drawmenu(void) {
 	int curpos;
 	Item *item;
 
+	wld_set_target_surface(dc->renderer, dc->surface);
 	dc->x = 0;
 	dc->y = 0;
 	dc->h = bh;
@@ -583,8 +584,8 @@ void
 paneldocked(void *data, struct swc_panel *panel, uint32_t length) {
 	mw = length;
 
-	dc->drawable = wld_wayland_create_drawable(dc->ctx, surf, mw, mh,
-						   WLD_FORMAT_XRGB8888, 0);
+	dc->surface = wld_wayland_create_surface(dc->ctx, mw, mh,
+						 WLD_FORMAT_XRGB8888, surf);
 }
 
 void
@@ -695,7 +696,7 @@ setup(void) {
 
 	wl_display_roundtrip(dc->dpy);
 
-	if (!dc->drawable)
+	if (!dc->surface)
 		exit(EXIT_FAILURE);
 
 	promptw = (prompt && *prompt) ? textw(dc, prompt) : 0;
