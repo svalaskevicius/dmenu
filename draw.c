@@ -122,7 +122,7 @@ void
 resizedc(DC *dc, struct wl_surface *surf, unsigned int w, unsigned int h) {
 	wld_destroy_surface(dc->surface);
 	dc->surface = wld_wayland_create_surface(dc->ctx, w, h,
-						 WLD_FORMAT_XRGB8888, surf);
+						 WLD_FORMAT_XRGB8888, 0, surf);
 }
 
 int

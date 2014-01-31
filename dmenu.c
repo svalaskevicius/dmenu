@@ -585,7 +585,7 @@ paneldocked(void *data, struct swc_panel *panel, uint32_t length) {
 	mw = length;
 
 	dc->surface = wld_wayland_create_surface(dc->ctx, mw, mh,
-						 WLD_FORMAT_XRGB8888, surf);
+						 WLD_FORMAT_XRGB8888, 0, surf);
 }
 
 void
