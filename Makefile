@@ -22,11 +22,11 @@ config.h:
 	@echo creating $@ from config.def.h
 	@cp config.def.h $@
 
-swc-protocol.c: swc.xml
+swc-protocol.c: $(SWCPROTO)
 	@echo GEN $@
 	@wayland-scanner code < $< > $@
 
-swc-client-protocol.h: swc.xml
+swc-client-protocol.h: $(SWCPROTO)
 	@echo GEN $@
 	@wayland-scanner client-header < $< > $@
 
