@@ -85,6 +85,7 @@ static DC *dc;
 static Item *items = NULL;
 static Item *matches, *matchend;
 static Item *prev, *curr, *next, *sel;
+static int mon = -1;
 static struct wl_compositor *comp;
 static struct wl_keyboard *kbd;
 static struct wl_seat *seat;
@@ -93,6 +94,7 @@ static struct wl_surface *surf;
 static struct wl_data_device_manager *datadevman;
 static struct wl_data_device *datadev;
 static struct wl_data_offer *seloffer;
+static struct swc_screen *screen;
 static struct swc_panel_manager *panelman;
 static struct swc_panel *panel;
 static XKB xkb;
@@ -121,7 +123,7 @@ main(int argc, char *argv[]) {
 	for(i = 1; i < argc; i++)
 		/* these options take no arguments */
 		if(!strcmp(argv[i], "-v")) {      /* prints version information */
-			puts("dmenu-"VERSION", © 2006-2012 dmenu engineers, see LICENSE for details");
+			puts("dmenu-"VERSION", © 2006-2014 dmenu engineers, see LICENSE for details");
 			exit(EXIT_SUCCESS);
 		}
 		else if(!strcmp(argv[i], "-b"))   /* appears at the bottom of the screen */
@@ -137,6 +139,8 @@ main(int argc, char *argv[]) {
 		/* these options take one argument */
 		else if(!strcmp(argv[i], "-l"))   /* number of lines in vertical list */
 			lines = atoi(argv[++i]);
+		else if(!strcmp(argv[i], "-m"))
+			mon = atoi(argv[++i]);
 		else if(!strcmp(argv[i], "-p"))   /* adds prompt to left of input field */
 			prompt = argv[++i];
 		else if(!strcmp(argv[i], "-fn"))  /* font or font set */
@@ -642,6 +646,10 @@ regglobal(void *data, struct wl_registry *reg, uint32_t name,
 		datadevman = wl_registry_bind(reg, name, &wl_data_device_manager_interface, 1);
 	else if(strcmp(interface, "swc_panel_manager") == 0)
 		panelman = wl_registry_bind(reg, name, &swc_panel_manager_interface, 1);
+	else if (strcmp(interface, "swc_screen") == 0) {
+		if(mon != -1 && mon-- == 0)
+		    screen = wl_registry_bind(reg, name, &swc_screen_interface, 1);
+	}
 }
 
 void
@@ -692,7 +700,7 @@ setup(void) {
 	panel = swc_panel_manager_create_panel(panelman, surf);
         swc_panel_add_listener(panel, &panellistener, NULL);
 	swc_panel_dock(panel, topbar ? SWC_PANEL_EDGE_TOP : SWC_PANEL_EDGE_BOTTOM,
-		       NULL, true);
+		       screen, true);
 
 	wl_display_roundtrip(dc->dpy);
 
@@ -707,7 +715,7 @@ setup(void) {
 
 void
 usage(void) {
-	fputs("usage: dmenu [-b] [-f] [-i] [-l lines] [-p prompt] [-fn font]\n"
+	fputs("usage: dmenu [-b] [-f] [-i] [-l lines] [-p prompt] [-fn font] [-m monitor]\n"
 	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-v]\n", stderr);
 	exit(EXIT_FAILURE);
 }
