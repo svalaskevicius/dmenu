@@ -2,7 +2,7 @@
 VERSION = 4.5-tip
 
 # paths
-PREFIX = /usr/local
+PREFIX = ${HOME}/bin/dmenu
 MANPREFIX = ${PREFIX}/share/man
 
 X11INC = /usr/X11R6/include
